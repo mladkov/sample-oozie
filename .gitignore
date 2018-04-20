@@ -1,0 +1,15 @@
+.idea
+.DS_Store
+archive-tmp
+classes
+generated-sources
+maven-archiver
+*.iml
+.classpath
+.project
+.settings
+classes.timestamp
+\#*
+.\#*
+**/*.swp
+target

@@ -1,0 +1,94 @@
+<workflow-app xmlns="uri:oozie:workflow:0.4" name="sample-oozie">
+  <global>
+    <job-tracker>${jobTracker}</job-tracker>
+    <name-node>${nameNode}</name-node>
+    <configuration>
+    	<property>
+    	 <name>mapreduce.job.queuename</name>
+    	 <value>${queueName}</value>
+    	</property>
+    </configuration>
+  </global>
+
+  <credentials>
+    <credential name="hive2_credentials" type="hive2">
+      <property>
+        <name>hive2.jdbc.url</name>
+        <value>jdbc:hive2://${hive2_server}:${hive2_port}/default;${hive2_tls}</value>
+      </property>
+      <property>
+        <name>hive2.server.principal</name>
+        <value>hive/${hive2_server}@${kerberos_realm}</value>
+      </property>
+    </credential>
+  </credentials>
+
+  <start to="sample-shell-action"/>
+
+  <action name="sample-shell-action">
+    <shell xmlns="uri:oozie:shell-action:0.3">
+      <exec>sample-shell.sh</exec>
+      <argument>hello there</argument>
+      <file>${nameNode}/${projectPath}/util/sample-shell.sh</file>
+    </shell>
+    <ok to="sample-hive2-createtable"/>
+    <error to="fail"/>
+  </action>
+
+  <action name="sample-hive2-createtable" cred="hive2_credentials">
+    <hive2 xmlns="uri:oozie:hive2-action:0.1">
+      <jdbc-url>jdbc:hive2://${hive2_server}:${hive2_port}/default;${hive2_tls}?mapreduce.job.queuename=${queueName}</jdbc-url>
+      <script>${nameNode}/${projectPath}/sql/sample_oozie_t1.sql</script>
+    </hive2>
+    <ok to="sample-hive2-loadtable"/>
+    <error to="fail"/>
+  </action>
+
+  <action name="sample-hive2-loadtable">
+    <distcp xmlns="uri:oozie:distcp-action:0.2">
+      <arg>${nameNode}${projectPath}/data/sample_oozie_t1.csv</arg>
+      <arg>${nameNode}/user/hive/warehouse/sample.db/oozie_t1_del</arg>
+    </distcp>
+    <ok to="sample-hive2-insertoverwritetable"/>
+    <error to="fail"/>
+  </action>
+
+  <action name="sample-hive2-insertoverwritetable" cred="hive2_credentials">
+    <hive2 xmlns="uri:oozie:hive2-action:0.1">
+      <jdbc-url>jdbc:hive2://${hive2_server}:${hive2_port}/default;${hive2_tls}?mapreduce.job.queuename=${queueName}</jdbc-url>
+      <script>${nameNode}/${projectPath}/sql/insert-overwrite-table.sql</script>
+      <param>DbSource=sample</param>
+      <param>TableSource=oozie_t1_del</param>
+      <param>DbTarget=sample</param>
+      <param>TableTarget=oozie_t1</param>
+    </hive2>
+    <ok to="sample-spark"/>
+    <error to="fail"/>
+  </action>
+
+  <action name="sample-spark">
+    <spark xmlns="uri:oozie:spark-action:0.1">
+      <job-tracker>${jobTracker}</job-tracker>
+      <name-node>${nameNode}</name-node>
+      <prepare>
+        <delete path="${nameNode}/user/hive/warehouse/sample.db/oozie_t1_spark"/>
+      </prepare>
+      <master>yarn</master>
+      <mode>cluster</mode>
+      <name>Spark Sample Oozie</name>
+      <class>com.acme.examples.spark.SparkSample</class>
+      <jar>sample-spark-1.0.jar</jar>
+      <spark-opts>--conf spark.yarn.queue=${queueName} --executor-memory 2G --num-executors 2</spark-opts>
+      <arg>${nameNode}/user/hive/warehouse/sample.db/oozie_t1</arg>
+      <arg>${nameNode}/user/hive/warehouse/sample.db/oozie_t1_spark</arg>
+    </spark>
+    <ok to="end"/>
+    <error to="fail"/>
+  </action>
+
+  <kill name="fail">
+    <message>Sample oozie [${wf:errorMessage(wf:lastErrorNode())}]</message>
+  </kill>
+
+  <end name='end'/>
+</workflow-app>
