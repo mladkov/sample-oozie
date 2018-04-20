@@ -17,6 +17,14 @@ YARN resource pool.
 We also have this project enabled for Kerberos environment, together with
 TLS enabled for HiveServer2.
 
+# Build
+
+A simple maven build will create the jar file for you.
+
+```sh
+mvn clean package
+```
+
 # Deployment
 
 Create the location in HDFS where you want this project to reside.
